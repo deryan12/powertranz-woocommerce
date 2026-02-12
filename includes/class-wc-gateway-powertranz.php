@@ -179,10 +179,10 @@ class WC_Gateway_PowerTranz extends WC_Payment_Gateway
             // Caso 2: SP4 con RedirectData (JS que requiere un form para device fingerprinting)
             elseif (isset($body['RedirectData']) && !empty($body['RedirectData'])) {
                 $spi_token = $body['SpiToken'] ?? '';
-                // Definir URL de destino. Para SP4 (Device Fingerprinting) se usa spi/Conector
-                $base_url = ($this->environment === 'production') ? 'https://gateway.ptranz.com/api/' : 'https://staging.ptranz.com/api/';
-                // Corrección: Usar 'spi/Conector' en lugar de 'spi/payment' para el paso de fingerprinting
-                $action_url = $base_url . 'spi/Conector';
+                // Definir URL de destino. Para SP4 (Device Fingerprinting), enviamos al callback de nuestro servidor
+                // para que el backend construya el JSON y lo envíe a PowerTranz (token exchange/proxy).
+                // Esto evita el error 415 (Unsupported Media Type) ya que spi/payment requiere JSON, no form-data.
+                $action_url = WC()->api_request_url('WC_Gateway_PowerTranz');
 
                 $redir_html = '<form id="powertranz_3ds_form" action="' . esc_url($action_url) . '" method="post">';
                 $redir_html .= '<input type="hidden" name="SpiToken" value="' . esc_attr($spi_token) . '" />';
@@ -208,7 +208,6 @@ class WC_Gateway_PowerTranz extends WC_Payment_Gateway
                 $script = preg_replace('/document\.forms\[\s*0\s*\]/', "document.getElementById('powertranz_3ds_form')", $script);
 
                 // Añadir un fallback script para asegurar el submit si el original falla o tarda
-                // Mantenemos el fallback simple, ya que ahora el submit es estándar y no requiere fetch complejo
                 $fallback_js = "
                 setTimeout(function() {
                     var form = document.getElementById('powertranz_3ds_form');
@@ -283,15 +282,39 @@ class WC_Gateway_PowerTranz extends WC_Payment_Gateway
      */
     public function handler_callback()
     {
-        // PowerTranz envía datos de vuelta. Usualmente POST.
         $spi_token = isset($_REQUEST['SpiToken']) ? sanitize_text_field($_REQUEST['SpiToken']) : null;
 
         if (!$spi_token) {
             wp_die('Acceso inválido a Callback de PowerTranz. Token no encontrado.', 'Error', array('response' => 400));
         }
 
-        // Finalizar pago llamando a /api/spi/payment
+        // Construir payload para completar el pago (spi/payment)
         $payload = array("SpiToken" => $spi_token);
+
+        // Si recibimos datos del navegador (flujo SP4 Device Fingerprinting), construimos el objeto BrowserInfo
+        if (isset($_POST['browserWidth'])) {
+            $browser_info = array(
+                'Language' => isset($_POST['browserLanguage']) ? sanitize_text_field($_POST['browserLanguage']) : '',
+                'ScreenWidth' => isset($_POST['browserWidth']) ? sanitize_text_field($_POST['browserWidth']) : '',
+                'ScreenHeight' => isset($_POST['browserHeight']) ? sanitize_text_field($_POST['browserHeight']) : '',
+                'TimeZone' => isset($_POST['browserTimeZone']) ? sanitize_text_field($_POST['browserTimeZone']) : '',
+                'JavaEnabled' => (isset($_POST['browserJavaEnabled']) && $_POST['browserJavaEnabled'] === 'true'),
+                'JavascriptEnabled' => (isset($_POST['browserJavascriptEnabled']) && $_POST['browserJavascriptEnabled'] === 'true'),
+                'ColorDepth' => isset($_POST['browserColorDepth']) ? sanitize_text_field($_POST['browserColorDepth']) : '',
+                'UserAgent' => isset($_SERVER['HTTP_USER_AGENT']) ? sanitize_text_field($_SERVER['HTTP_USER_AGENT']) : '',
+                'AcceptHeader' => isset($_SERVER['HTTP_ACCEPT']) ? sanitize_text_field($_SERVER['HTTP_ACCEPT']) : '',
+                'IP' => WC_Geolocation::get_ip_address()
+            );
+
+            // PowerTranz espera BrowserInfo dentro de ExtendedData o en la raíz dependiendo de la estructura
+            // Asumiendo que va en la raíz por ahora al ser un `spi/payment` completion request o similar a `ExtendedRequestData`
+            // Basado en mensajes de error anteriores, si falla, intentaremos dentro de ExtendedData.
+            // Para 'spi/payment', usualmente se envia el objeto BrowserInfo directamente si es requerido.
+            $payload['BrowserInfo'] = $browser_info;
+        }
+
+        // Finalizar pago llamando a /api/spi/payment
+        // Nota: send_api_request ya maneja json_encode y headers (Content-Type: application/json)
         $response = $this->send_api_request('spi/payment', $payload);
 
         if (is_wp_error($response)) {
@@ -305,14 +328,14 @@ class WC_Gateway_PowerTranz extends WC_Payment_Gateway
         }
 
         // Recuperar Order ID de la respuesta de la API (OrderIdentifier)
-        // PowerTranz devuelve el OrderIdentifier original en la respuesta de pago.
         $order_id = isset($body['OrderIdentifier']) ? absint($body['OrderIdentifier']) : 0;
+
+        // Si no tenemos OrderIdentifier en la respuesta (caso error), intentar recuperarlo de un transient temporal si lo hubiéramos guardado (no implementado ahora)
+        // O confiar que si falla y no hay order ID, no podemos redirigir bien.
 
         if ($order_id) {
             $order = wc_get_order($order_id);
-
             if (!$order) {
-                wp_die('Error: Pedido no encontrado (' . $order_id . ')');
             }
 
             if (isset($body['Approved']) && $body['Approved'] === true) {

@@ -36,7 +36,7 @@ class WC_Gateway_PowerTranz extends WC_Payment_Gateway
         // Actions
         add_action('woocommerce_update_options_payment_gateways_' . $this->id, array($this, 'process_admin_options'));
         add_action('woocommerce_receipt_' . $this->id, array($this, 'receipt_page'));
-        add_action('woocommerce_api_powertranz_callback', array($this, 'handler_callback'));
+        add_action('woocommerce_api_wc_gateway_powertranz', array($this, 'handler_callback'));
     }
 
     /**

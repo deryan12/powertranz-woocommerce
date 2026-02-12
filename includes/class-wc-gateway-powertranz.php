@@ -321,10 +321,11 @@ class WC_Gateway_PowerTranz extends WC_Payment_Gateway
             wp_die('Error de comunicación con PowerTranz: ' . $response->get_error_message());
         }
 
-        $body = json_decode(wp_remote_retrieve_body($response), true);
+        $body_string = wp_remote_retrieve_body($response);
+        $body = json_decode($body_string, true);
 
         if ($this->debug === 'yes' || $this->debug === 'log' || $this->debug === 'both') {
-            $this->log('3DS Payment Response: ' . print_r($body, true));
+            $this->log('3DS Payment Response (Raw): ' . $body_string);
         }
 
         // Recuperar Order ID de la respuesta de la API (OrderIdentifier)
@@ -354,7 +355,7 @@ class WC_Gateway_PowerTranz extends WC_Payment_Gateway
             }
         } else {
             // Fallback si no hay order_id en respuesta
-            wp_die('Error: Order ID no retornado por PowerTranz en finalización de pago.');
+            wp_die('Error: Order ID no retornado por PowerTranz en finalización de pago. Body: ' . print_r($body, true));
         }
     }
 

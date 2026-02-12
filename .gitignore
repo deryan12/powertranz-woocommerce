@@ -1,0 +1,17 @@
+
+# Exclude the reference plugin folder
+woocommerce-omnipay-powertranz-3ds2-gateway
+
+# OS files
+.DS_Store
+.localized
+Thumbs.db
+Desktop.ini
+
+# Composer
+vendor/
+
+# WordPress & Local Dev
+wp-config.php
+wp-content/uploads/
+*.log

@@ -1,0 +1,36 @@
+/* Estilos para el campo de tarjeta y logos */
+.powertranz-card-input-wrapper {
+    position: relative;
+}
+
+.powertranz-card-input-wrapper input {
+    padding-right: 40px !important; /* Espacio para el icono */
+}
+
+.powertranz-card-icon {
+    position: absolute;
+    right: 10px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 32px;
+    height: 20px;
+    background-size: contain;
+    background-repeat: no-repeat;
+    background-position: center;
+    pointer-events: none;
+}
+
+/* 
+   Para los logos, usaremos URLs base o SVGs inline si es posible.
+   Como ejemplo, definimos clases que el usuario podrá personalizar o 
+   añadiremos las imágenes en la carpeta assets/images. 
+*/
+.powertranz-card-icon.visa {
+    background-image: url('../images/visa.svg');
+}
+.powertranz-card-icon.mastercard {
+    background-image: url('../images/mastercard.svg');
+}
+.powertranz-card-icon.amex {
+    background-image: url('../images/amex.svg');
+}

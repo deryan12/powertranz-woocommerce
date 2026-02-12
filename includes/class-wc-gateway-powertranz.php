@@ -8,6 +8,16 @@ defined('ABSPATH') || exit;
 class WC_Gateway_PowerTranz extends WC_Payment_Gateway
 {
 
+    /** @var WC_Logger Logger instance */
+    public $log = false;
+
+    public $instructions;
+    public $environment;
+    public $merchant_id;
+    public $password;
+    public $enable_3ds;
+    public $debug;
+
     /**
      * Constructor for the gateway.
      */
@@ -36,8 +46,10 @@ class WC_Gateway_PowerTranz extends WC_Payment_Gateway
         // Actions
         add_action('woocommerce_update_options_payment_gateways_' . $this->id, array($this, 'process_admin_options'));
         add_action('woocommerce_receipt_' . $this->id, array($this, 'receipt_page'));
-        add_action('woocommerce_api_wc_gateway_powertranz', array($this, 'handler_callback'));
+        add_action('woocommerce_api_powertranz', array($this, 'handler_callback'));
     }
+
+
 
     /**
      * Initialize Gateway Settings Form Fields.
@@ -178,63 +190,32 @@ class WC_Gateway_PowerTranz extends WC_Payment_Gateway
             }
             // Caso 2: SP4 con RedirectData (JS que requiere un form para device fingerprinting)
             elseif (isset($body['RedirectData']) && !empty($body['RedirectData'])) {
-                $spi_token = $body['SpiToken'] ?? '';
-                // Definir URL de destino. Para SP4 (Device Fingerprinting), enviamos al callback de nuestro servidor
-                // para que el backend construya el JSON y lo envíe a PowerTranz (token exchange/proxy).
-                // Esto evita el error 415 (Unsupported Media Type) ya que spi/payment requiere JSON, no form-data.
-                $action_url = WC()->api_request_url('WC_Gateway_PowerTranz');
-
-                $redir_html = '<form id="powertranz_3ds_form" action="' . esc_url($action_url) . '" method="post">';
-                $redir_html .= '<input type="hidden" name="SpiToken" value="' . esc_attr($spi_token) . '" />';
-                // Inputs requeridos por el script GetBrowserInfoAndSubmit de PowerTranz
-                $redir_html .= '<input type="hidden" id="browserLanguage" name="browserLanguage" value="" />';
-                $redir_html .= '<input type="hidden" id="browserWidth" name="browserWidth" value="" />';
-                $redir_html .= '<input type="hidden" id="browserHeight" name="browserHeight" value="" />';
-                $redir_html .= '<input type="hidden" id="browserTimeZone" name="browserTimeZone" value="" />';
-                $redir_html .= '<input type="hidden" id="browserJavaEnabled" name="browserJavaEnabled" value="" />';
-                $redir_html .= '<input type="hidden" id="browserJavascriptEnabled" name="browserJavascriptEnabled" value="" />';
-                $redir_html .= '<input type="hidden" id="browserColorDepth" name="browserColorDepth" value="" />';
-                $redir_html .= '<div class="powertranz-submit-wrapper" style="text-align:center; margin-top:20px;">';
-                $redir_html .= '<p>' . __('Si no es redirigido automáticamente en unos segundos...', 'powertranz-woocommerce') . '</p>';
-                $redir_html .= '<input type="submit" class="button" id="powertranz_submit_btn" value="' . __('Continuar', 'powertranz-woocommerce') . '" />';
-                $redir_html .= '</div>';
-
-                $redir_html .= '</form>';
-
-                // Modificar el script para usar el ID del formulario en lugar de forms[0]
-                $script = $body['RedirectData'];
-                // Usar preg_replace para flexibilidad con forms[0] y reemplazarlo por nuestro ID
-                // Nota: El script original hace document.forms[0].submit(). Lo cambiamos a document.getElementById(...).submit()
-                $script = preg_replace('/document\.forms\[\s*0\s*\]/', "document.getElementById('powertranz_3ds_form')", $script);
-
-                // Añadir un fallback script para asegurar el submit si el original falla o tarda
-                $fallback_js = "
-                setTimeout(function() {
-                    var form = document.getElementById('powertranz_3ds_form');
-                    var btn = document.getElementById('powertranz_submit_btn');
-                    if(form) {
-                        if(btn) btn.value = '" . __('Procesando...', 'powertranz-woocommerce') . "';
-                        try {
-                            // Intentar ejecutar la función original si existe y no se ha ejecutado
-                            // Pero como hemos inyectado el script antes, ya debería haber corrido.
-                            // Solo forzamos el submit si aún estamos aquí.
-                            form.submit();
-                        } catch(e) {
-                            console.log('PowerTranz AutoSubmit Fallback Error:', e);
-                            form.submit();
-                        }
-                    }
-                }, 2000); // Dar tiempo al script original
-                ";
-
-                $redir_html .= '<script>' . $script . ' ' . $fallback_js . '</script>';
+                // Usamos el HTML proporcionado por PowerTranz tal cual.
+                // Este HTML contiene un form que POSTea a Conductor, y un script que lo auto-envía.
+                $redir_html = $body['RedirectData'];
             }
 
             if (!empty($redir_html)) {
                 set_transient('powertranz_3ds_' . $order_id, $redir_html, 10 * MINUTE_IN_SECONDS);
+
+                // Use Custom AJAX Endpoint to bypass WooCommerce Redirects
+                $pay_url = admin_url('admin-ajax.php');
+                $pay_url = add_query_arg(
+                    array(
+                        'action' => 'powertranz_3ds',
+                        'order_id' => $order_id,
+                        'key' => $order->get_order_key(),
+                    ),
+                    $pay_url
+                );
+
+                if ($this->debug === 'yes' || $this->debug === 'log' || $this->debug === 'both') {
+                    $this->log('Redirecting to Custom 3DS AJAX Endpoint: ' . $pay_url);
+                }
+
                 return array(
                     'result' => 'success',
-                    'redirect' => $order->get_checkout_payment_url(true),
+                    'redirect' => $pay_url,
                 );
             }
         }
@@ -258,64 +239,136 @@ class WC_Gateway_PowerTranz extends WC_Payment_Gateway
     /**
      * Output for the order received page (3DS Intercept).
      */
+    /**
+     * Output for the order received page (3DS Intercept).
+     * Kept for backward compatibility but likely unused now.
+     */
     public function receipt_page($order_id)
     {
+        error_log('PowerTranz DEBUG: Legacy Receipt Page Hit (Unexpected) for Order ID: ' . $order_id);
+    }
+
+    /**
+     * Handle the Custom AJAX 3DS Page
+     */
+    public function render_3ds_page_handler()
+    {
+        $order_id = isset($_GET['order_id']) ? absint($_GET['order_id']) : 0;
+        $key = isset($_GET['key']) ? sanitize_text_field($_GET['key']) : '';
+
+        if (!$order_id || empty($key)) {
+            wp_die('Invalid Request');
+        }
+
+        $order = wc_get_order($order_id);
+        if (!$order || $order->get_order_key() !== $key) {
+            wp_die('Invalid Order Key');
+        }
+
+        if ($this->debug === 'yes' || $this->debug === 'log' || $this->debug === 'both') {
+            $this->log('Custom AJAX 3DS Handler Hit for Order ID: ' . $order_id);
+        }
+
         $redir_html = get_transient('powertranz_3ds_' . $order_id);
 
         if ($redir_html) {
-            echo '<div class="powertranz-3ds-container">';
-            echo '<h3>' . __('Autenticación 3D-Secure Requerida', 'powertranz-woocommerce') . '</h3>';
-            echo '<p>' . __('Por favor complete la verificación con su banco para continuar.', 'powertranz-woocommerce') . '</p>';
+            if ($this->debug === 'yes' || $this->debug === 'log' || $this->debug === 'both') {
+                $this->log('Ajax Handler Found Transient HTML. Rendering...');
+            }
             echo $redir_html;
-            echo '</div>';
-
-            // script para auto-submit si es un form oculto, aunque RedirHtml suele ser completo.
-            // PowerTranz RedirHtml suele incluir scripts de auto-submit.
+            exit; // Stop execution
         } else {
-            echo '<p>' . __('Error: No se encontró información de redirección.', 'powertranz-woocommerce') . '</p>';
+            if ($this->debug === 'yes' || $this->debug === 'log' || $this->debug === 'both') {
+                $this->log('ERROR: Ajax Handler - No transient found for order ' . $order_id);
+            }
+            wp_die(__('Error: No se encontró información de redirección.', 'powertranz-woocommerce'));
+        }
+    }
+
+    /**
+     * Force Callback Intercept on Init.
+     */
+    public function force_callback_and_exit()
+    {
+        // Check standard WC API query var
+        if (isset($_GET['wc-api']) && $_GET['wc-api'] === 'powertranz') {
+
+            // Ensure logger
+            if (empty($this->log)) {
+                $this->log = new WC_Logger();
+            }
+            $this->log->add('powertranz', 'Force Intercept: Callback detected on Init. Method: ' . $_SERVER['REQUEST_METHOD']);
+
+            $this->handler_callback();
+            exit;
         }
     }
 
     /**
      * Handler for 3DS Callback via WC API.
-     * URL: /wc-api/WC_Gateway_PowerTranz/
+     * URL: /wc-api/powertranz/
      */
     public function handler_callback()
     {
-        $spi_token = isset($_REQUEST['SpiToken']) ? sanitize_text_field($_REQUEST['SpiToken']) : null;
+        // Debug: Validar que el endpoint es alcanzable (GET Request check)
+        if ($_SERVER['REQUEST_METHOD'] === 'GET' && !isset($_REQUEST['SpiToken']) && !isset($_POST['Response'])) {
+            wp_die('PowerTranz Callback Endpoint Reached successfully. (Method: GET)', 'PowerTranz OK');
+        }
+
+        $spi_token = null;
+        $incoming_response_data = null;
+
+
+        // 1. Check for 'Response' field (Standard SP4/3DS return from Conductor)
+        $raw_post = file_get_contents('php://input');
+
+        if (isset($_POST['Response'])) {
+            $spi_token_json = stripslashes($_POST['Response']);
+
+            // LOGGING CRÍTICO: Ver qué nos devuelve Conductor
+            if (!empty($this->log)) {
+                $this->log->add('powertranz', 'Callback Incoming $_POST: ' . print_r($_POST, true));
+                $this->log->add('powertranz', 'Callback Incoming Body: ' . $raw_post);
+            }
+
+            $postData = json_decode($spi_token_json, true);
+        } elseif (!empty($raw_post)) {
+            // Fallback: Try decoding raw input if $_POST is empty (e.g. JSON payload)
+            if (!empty($this->log)) {
+                $this->log->add('powertranz', 'Callback Fallback: Reading raw input. ' . $raw_post);
+            }
+            $postData = json_decode($raw_post, true);
+
+            // If raw post is query string formatted (unexpected but possible)
+            if (empty($postData)) {
+                parse_str($raw_post, $postData);
+                if (isset($postData['Response'])) {
+                    $postData = json_decode(stripslashes($postData['Response']), true);
+                }
+            }
+        }
+
+        if (isset($postData['SpiToken'])) {
+            $spi_token = sanitize_text_field($postData['SpiToken']);
+            if (!empty($this->log)) {
+                $this->log->add('powertranz', 'Callback found SpiToken via JSON/Raw: ' . $spi_token);
+            }
+        }
+
+        $incoming_response_data = $postData;
+
+        // 2. Fallback to direct SpiToken field
+        if (!$spi_token && isset($_REQUEST['SpiToken'])) {
+            $spi_token = sanitize_text_field($_REQUEST['SpiToken']);
+        }
 
         if (!$spi_token) {
             wp_die('Acceso inválido a Callback de PowerTranz. Token no encontrado.', 'Error', array('response' => 400));
         }
 
-        // Construir payload para completar el pago (spi/payment)
-        $payload = array("SpiToken" => $spi_token);
-
-        // Si recibimos datos del navegador (flujo SP4 Device Fingerprinting), construimos el objeto BrowserInfo
-        if (isset($_POST['browserWidth'])) {
-            $browser_info = array(
-                'Language' => isset($_POST['browserLanguage']) ? sanitize_text_field($_POST['browserLanguage']) : '',
-                'ScreenWidth' => isset($_POST['browserWidth']) ? sanitize_text_field($_POST['browserWidth']) : '',
-                'ScreenHeight' => isset($_POST['browserHeight']) ? sanitize_text_field($_POST['browserHeight']) : '',
-                'TimeZone' => isset($_POST['browserTimeZone']) ? sanitize_text_field($_POST['browserTimeZone']) : '',
-                'JavaEnabled' => (isset($_POST['browserJavaEnabled']) && $_POST['browserJavaEnabled'] === 'true'),
-                'JavascriptEnabled' => (isset($_POST['browserJavascriptEnabled']) && $_POST['browserJavascriptEnabled'] === 'true'),
-                'ColorDepth' => isset($_POST['browserColorDepth']) ? sanitize_text_field($_POST['browserColorDepth']) : '',
-                'UserAgent' => isset($_SERVER['HTTP_USER_AGENT']) ? sanitize_text_field($_SERVER['HTTP_USER_AGENT']) : '',
-                'AcceptHeader' => isset($_SERVER['HTTP_ACCEPT']) ? sanitize_text_field($_SERVER['HTTP_ACCEPT']) : '',
-                'IP' => WC_Geolocation::get_ip_address()
-            );
-
-            // PowerTranz espera BrowserInfo dentro de ExtendedData o en la raíz dependiendo de la estructura
-            // Asumiendo que va en la raíz por ahora al ser un `spi/payment` completion request o similar a `ExtendedRequestData`
-            // Basado en mensajes de error anteriores, si falla, intentaremos dentro de ExtendedData.
-            // Para 'spi/payment', usualmente se envia el objeto BrowserInfo directamente si es requerido.
-            $payload['BrowserInfo'] = $browser_info;
-        }
-
-        // Finalizar pago llamando a /api/spi/payment
-        // Nota: send_api_request ya maneja json_encode y headers (Content-Type: application/json)
-        $response = $this->send_api_request('spi/payment', $payload);
+        // IMPORTANTE: spi/payment espera SOLO el token como String en el body (JSON encoded string).
+        // Enviar un objeto JSON causa error 500 o respuesta vacía.
+        $response = $this->send_api_request('spi/payment', $spi_token);
 
         if (is_wp_error($response)) {
             wp_die('Error de comunicación con PowerTranz: ' . $response->get_error_message());
@@ -328,15 +381,19 @@ class WC_Gateway_PowerTranz extends WC_Payment_Gateway
             $this->log('3DS Payment Response (Raw): ' . $body_string);
         }
 
-        // Recuperar Order ID de la respuesta de la API (OrderIdentifier)
-        $order_id = isset($body['OrderIdentifier']) ? absint($body['OrderIdentifier']) : 0;
+        if (empty($body)) {
+            // Si la respuesta es vacía, es posible que el token string sea rechazado por alguna razón,
+            // pero el log anterior nos dirá qué pasó.
+            wp_die('Error: Respuesta inválida o vacía de PowerTranz en spi/payment. Raw Body: ' . htmlspecialchars($body_string));
+        }
 
-        // Si no tenemos OrderIdentifier en la respuesta (caso error), intentar recuperarlo de un transient temporal si lo hubiéramos guardado (no implementado ahora)
-        // O confiar que si falla y no hay order ID, no podemos redirigir bien.
+        // Recuperar Order ID
+        $order_id = isset($body['OrderIdentifier']) ? absint($body['OrderIdentifier']) : 0;
 
         if ($order_id) {
             $order = wc_get_order($order_id);
             if (!$order) {
+                // Order not found logic if needed
             }
 
             if (isset($body['Approved']) && $body['Approved'] === true) {
@@ -345,18 +402,46 @@ class WC_Gateway_PowerTranz extends WC_Payment_Gateway
                 wp_redirect($this->get_return_url($order));
                 exit;
             } else {
+                // Manejar errores (ej: 330 Not Permitted)
                 $msg = isset($body['Errors'][0]['Message']) ? $body['Errors'][0]['Message'] : 'Pago rechazado';
-                // Añadir nota al pedido
-                $order->add_order_note(__('Fallo en autenticación 3DS: ', 'powertranz-woocommerce') . $msg);
+                if (isset($body['IsoResponseCode']) && $body['IsoResponseCode'] !== '00') {
+                    $msg .= ' (Code: ' . $body['IsoResponseCode'] . ')';
+                }
 
+                $order->add_order_note(__('Fallo en autenticación 3DS: ', 'powertranz-woocommerce') . $msg);
                 wc_add_notice('Error en pago 3DS: ' . $msg, 'error');
                 wp_redirect(wc_get_checkout_url());
                 exit;
             }
         } else {
-            // Fallback si no hay order_id en respuesta
             wp_die('Error: Order ID no retornado por PowerTranz en finalización de pago. Body: ' . print_r($body, true));
         }
+    }
+
+    /**
+     * Helper for REST API Callback.
+     * Called by powertranz-woocommerce.php
+     */
+    public function rest_handler_callback($request)
+    {
+        // Debug Log
+        if (empty($this->log)) {
+            $this->log = new WC_Logger();
+        }
+        $this->log->add('powertranz', 'REST API Callback Reached. Method: ' . $_SERVER['REQUEST_METHOD']);
+
+        // Inject request params into $_POST/$_REQUEST for the legacy handler to work without rewrite
+        $params = $request->get_params();
+        if (!empty($params)) {
+            $_POST = array_merge($_POST, $params);
+            $_REQUEST = array_merge($_REQUEST, $params);
+        }
+
+        // Execute logic
+        $this->handler_callback();
+
+        // Return valid REST response
+        return new WP_REST_Response(array('status' => 'success', 'message' => 'Processed'), 200);
     }
 
     /**
@@ -396,6 +481,20 @@ class WC_Gateway_PowerTranz extends WC_Payment_Gateway
             $exp_str = $year . $month;
         }
 
+        // Recopilar BrowserInfo de los campos ocultos del frontend
+        $browser_info = array(
+            'ScreenWidth' => isset($_POST['powertranz_browser_width']) ? sanitize_text_field($_POST['powertranz_browser_width']) : '',
+            'ScreenHeight' => isset($_POST['powertranz_browser_height']) ? sanitize_text_field($_POST['powertranz_browser_height']) : '',
+            'ColorDepth' => isset($_POST['powertranz_browser_color_depth']) ? sanitize_text_field($_POST['powertranz_browser_color_depth']) : '',
+            'Language' => isset($_POST['powertranz_browser_language']) ? sanitize_text_field($_POST['powertranz_browser_language']) : '',
+            'TimeZone' => isset($_POST['powertranz_browser_timezone']) ? sanitize_text_field($_POST['powertranz_browser_timezone']) : '',
+            'JavaEnabled' => (isset($_POST['powertranz_browser_java_enabled']) && $_POST['powertranz_browser_java_enabled'] === 'true'),
+            'JavascriptEnabled' => true,
+            'UserAgent' => isset($_SERVER['HTTP_USER_AGENT']) ? sanitize_text_field($_SERVER['HTTP_USER_AGENT']) : '',
+            'AcceptHeader' => isset($_SERVER['HTTP_ACCEPT']) ? sanitize_text_field($_SERVER['HTTP_ACCEPT']) : '',
+            'IP' => WC_Geolocation::get_ip_address()
+        );
+
         $payload = array(
             "TransactionIdentifier" => wp_generate_uuid4(),
             "TotalAmount" => (float) $amount,
@@ -414,7 +513,8 @@ class WC_Gateway_PowerTranz extends WC_Payment_Gateway
                     "ChallengeWindowSize" => 5,
                     "ChallengeIndicator" => "01" // 01 = No preference, standard.
                 ),
-                "MerchantResponseUrl" => WC()->api_request_url('WC_Gateway_PowerTranz')
+                // Use AJAX handler to avoid 403 and Rewrite issues
+                "MerchantResponseUrl" => admin_url('admin-ajax.php?action=powertranz_callback')
             )
         );
 
@@ -488,29 +588,31 @@ class WC_Gateway_PowerTranz extends WC_Payment_Gateway
      */
     public function payment_fields()
     {
-        // Renderizar formulario personalizado o estándar con clases para JS
+        // Debug URL removed per user request
+
+        // Renderizar formulario
         echo '<fieldset id="wc-' . esc_attr($this->id) . '-cc-form" class="wc-credit-card-form wc-payment-form" style="background:transparent;">';
 
         do_action('woocommerce_credit_card_form_start', $this->id);
 
         // Número de tarjeta
         echo '<div class="form-row form-row-wide">
-             <label>' . esc_html__('Card Number', 'woocommerce') . ' <span class="required">*</span></label>
+             <label>' . esc_html__('Número de Tarjeta', 'powertranz-woocommerce') . ' <span class="required">*</span></label>
              <div class="powertranz-card-input-wrapper">
-                <input id="powertranz-card-number" class="input-text wc-credit-card-form-card-number" type="tel" maxlength="20" autocomplete="off" placeholder="&bull;&bull;&bull;&bull; &bull;&bull;&bull;&bull; &bull;&bull;&bull;&bull; &bull;&bull;&bull;&bull;" name="powertranz-card-number" />
+                <input id="powertranz-card-number" class="input-text wc-credit-card-form-card-number" type="tel" inputmode="numeric" maxlength="23" autocomplete="cc-number" placeholder="0000 0000 0000 0000" name="powertranz-card-number" />
                 <span class="powertranz-card-icon"></span>
              </div>
              </div>';
 
         // Expiración y CVC
         echo '<div class="form-row form-row-first">
-             <label>' . esc_html__('Expiry (MM/YY)', 'woocommerce') . ' <span class="required">*</span></label>
-             <input id="powertranz-card-expiry" class="input-text wc-credit-card-form-card-expiry" type="tel" autocomplete="off" placeholder="' . esc_attr__('MM / YY', 'woocommerce') . '" name="powertranz-card-expiry" />
+             <label>' . esc_html__('Caducidad (MM / AA)', 'powertranz-woocommerce') . ' <span class="required">*</span></label>
+             <input id="powertranz-card-expiry" class="input-text wc-credit-card-form-card-expiry" type="tel" inputmode="numeric" maxlength="9" autocomplete="cc-exp" placeholder="' . esc_attr__('MM / AA', 'powertranz-woocommerce') . '" name="powertranz-card-expiry" />
              </div>';
 
         echo '<div class="form-row form-row-last">
-             <label>' . esc_html__('Card Code', 'woocommerce') . ' <span class="required">*</span></label>
-             <input id="powertranz-card-cvc" class="input-text wc-credit-card-form-card-cvc" type="tel" autocomplete="off" placeholder="' . esc_attr__('CVC', 'woocommerce') . '" name="powertranz-card-cvc" />
+             <label>' . esc_html__('Código de Seguridad (CVC)', 'powertranz-woocommerce') . ' <span class="required">*</span></label>
+             <input id="powertranz-card-cvc" class="input-text wc-credit-card-form-card-cvc" type="password" inputmode="numeric" maxlength="4" autocomplete="off" placeholder="' . esc_attr__('CVC', 'powertranz-woocommerce') . '" name="powertranz-card-cvc" />
              </div>';
 
         do_action('woocommerce_credit_card_form_end', $this->id);

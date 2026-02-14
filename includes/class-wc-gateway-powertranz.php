@@ -8,7 +8,7 @@ defined('ABSPATH') || exit;
 class WC_Gateway_PowerTranz extends WC_Payment_Gateway
 {
 
-    /** @var WC_Logger Logger instance */
+    /** @var WC_Logger Instancia del registrador */
     public $log = false;
 
     public $instructions;
@@ -19,7 +19,7 @@ class WC_Gateway_PowerTranz extends WC_Payment_Gateway
     public $debug;
 
     /**
-     * Constructor for the gateway.
+     * Constructor de la pasarela.
      */
     public function __construct()
     {
@@ -29,11 +29,11 @@ class WC_Gateway_PowerTranz extends WC_Payment_Gateway
         $this->method_title = __('PowerTranz', 'powertranz-woocommerce');
         $this->method_description = __('Acepta pagos con tarjeta de crédito vía PowerTranz SPI.', 'powertranz-woocommerce');
 
-        // Load the settings.
+        // Cargar la configuración.
         $this->init_form_fields();
         $this->init_settings();
 
-        // Define user set variables.
+        // Definir variables configuradas por el usuario.
         $this->title = $this->get_option('title');
         $this->description = $this->get_option('description');
         $this->instructions = $this->get_option('instructions');
@@ -43,7 +43,7 @@ class WC_Gateway_PowerTranz extends WC_Payment_Gateway
         $this->enable_3ds = $this->get_option('enable_3ds');
         $this->debug = $this->get_option('debug');
 
-        // Actions
+        // Acciones
         add_action('woocommerce_update_options_payment_gateways_' . $this->id, array($this, 'process_admin_options'));
         add_action('woocommerce_receipt_' . $this->id, array($this, 'receipt_page'));
         add_action('woocommerce_api_powertranz', array($this, 'handler_callback'));
@@ -52,7 +52,7 @@ class WC_Gateway_PowerTranz extends WC_Payment_Gateway
 
 
     /**
-     * Initialize Gateway Settings Form Fields.
+     * Inicializar campos del formulario de configuración de la pasarela.
      */
     public function init_form_fields()
     {
@@ -136,7 +136,7 @@ class WC_Gateway_PowerTranz extends WC_Payment_Gateway
     }
 
     /**
-     * Process the payment and return the result.
+     * Procesar el pago y devolver el resultado.
      *
      * @param int $order_id
      * @return array
@@ -198,7 +198,7 @@ class WC_Gateway_PowerTranz extends WC_Payment_Gateway
             if (!empty($redir_html)) {
                 set_transient('powertranz_3ds_' . $order_id, $redir_html, 10 * MINUTE_IN_SECONDS);
 
-                // Use Custom AJAX Endpoint to bypass WooCommerce Redirects
+                // Usar endpoint AJAX personalizado para evitar redirecciones de WooCommerce
                 $pay_url = admin_url('admin-ajax.php');
                 $pay_url = add_query_arg(
                     array(
@@ -231,17 +231,17 @@ class WC_Gateway_PowerTranz extends WC_Payment_Gateway
             );
         }
 
-        // Fallback catch-all
+        // Respuesta genérica de error
         wc_add_notice(__('Error desconocido procesando el pago. Por favor intenta de nuevo.', 'powertranz-woocommerce'), 'error');
         return array('result' => 'fail');
     }
 
     /**
-     * Output for the order received page (3DS Intercept).
+     * Salida para la página de orden recibida (Intercepción 3DS).
      */
     /**
-     * Output for the order received page (3DS Intercept).
-     * Kept for backward compatibility but likely unused now.
+     * Salida para la página de orden recibida (Intercepción 3DS).
+     * Mantenido por compatibilidad pero probablemente sin uso.
      */
     public function receipt_page($order_id)
     {
@@ -249,7 +249,7 @@ class WC_Gateway_PowerTranz extends WC_Payment_Gateway
     }
 
     /**
-     * Handle the Custom AJAX 3DS Page
+     * Manejar la página AJAX personalizada de 3DS
      */
     public function render_3ds_page_handler()
     {
@@ -276,7 +276,7 @@ class WC_Gateway_PowerTranz extends WC_Payment_Gateway
                 $this->log('Ajax Handler Found Transient HTML. Rendering...');
             }
             echo $redir_html;
-            exit; // Stop execution
+            exit; // Detener ejecución
         } else {
             if ($this->debug === 'yes' || $this->debug === 'log' || $this->debug === 'both') {
                 $this->log('ERROR: Ajax Handler - No transient found for order ' . $order_id);
@@ -286,14 +286,14 @@ class WC_Gateway_PowerTranz extends WC_Payment_Gateway
     }
 
     /**
-     * Force Callback Intercept on Init.
+     * Intercepción forzada de Callback en Init.
      */
     public function force_callback_and_exit()
     {
-        // Check standard WC API query var
+        // Verificar variable de consulta estándar de WC API
         if (isset($_GET['wc-api']) && $_GET['wc-api'] === 'powertranz') {
 
-            // Ensure logger
+            // Asegurar el registrador
             if (empty($this->log)) {
                 $this->log = new WC_Logger();
             }
@@ -305,12 +305,12 @@ class WC_Gateway_PowerTranz extends WC_Payment_Gateway
     }
 
     /**
-     * Handler for 3DS Callback via WC API.
+     * Manejador de Callback 3DS vía WC API.
      * URL: /wc-api/powertranz/
      */
     public function handler_callback()
     {
-        // Debug: Validar que el endpoint es alcanzable (GET Request check)
+        // Depuración: Validar que el endpoint es alcanzable (verificación de solicitud GET)
         if ($_SERVER['REQUEST_METHOD'] === 'GET' && !isset($_REQUEST['SpiToken']) && !isset($_POST['Response'])) {
             wp_die('PowerTranz Callback Endpoint Reached successfully. (Method: GET)', 'PowerTranz OK');
         }
@@ -319,7 +319,7 @@ class WC_Gateway_PowerTranz extends WC_Payment_Gateway
         $incoming_response_data = null;
 
 
-        // 1. Check for 'Response' field (Standard SP4/3DS return from Conductor)
+        // 1. Verificar campo 'Response' (Retorno estándar SP4/3DS desde Conductor)
         $raw_post = file_get_contents('php://input');
 
         if (isset($_POST['Response'])) {
@@ -333,13 +333,13 @@ class WC_Gateway_PowerTranz extends WC_Payment_Gateway
 
             $postData = json_decode($spi_token_json, true);
         } elseif (!empty($raw_post)) {
-            // Fallback: Try decoding raw input if $_POST is empty (e.g. JSON payload)
+            // Respaldo: Intentar decodificar entrada cruda si $_POST está vacío (ej. payload JSON)
             if (!empty($this->log)) {
                 $this->log->add('powertranz', 'Callback Fallback: Reading raw input. ' . $raw_post);
             }
             $postData = json_decode($raw_post, true);
 
-            // If raw post is query string formatted (unexpected but possible)
+            // Si la entrada cruda tiene formato query string (inesperado pero posible)
             if (empty($postData)) {
                 parse_str($raw_post, $postData);
                 if (isset($postData['Response'])) {
@@ -357,7 +357,7 @@ class WC_Gateway_PowerTranz extends WC_Payment_Gateway
 
         $incoming_response_data = $postData;
 
-        // 2. Fallback to direct SpiToken field
+        // 2. Respaldo al campo SpiToken directo
         if (!$spi_token && isset($_REQUEST['SpiToken'])) {
             $spi_token = sanitize_text_field($_REQUEST['SpiToken']);
         }
@@ -393,7 +393,7 @@ class WC_Gateway_PowerTranz extends WC_Payment_Gateway
         if ($order_id) {
             $order = wc_get_order($order_id);
             if (!$order) {
-                // Order not found logic if needed
+                // Orden no encontrada, lógica adicional si es necesario
             }
 
             if (isset($body['Approved']) && $body['Approved'] === true) {
@@ -419,28 +419,28 @@ class WC_Gateway_PowerTranz extends WC_Payment_Gateway
     }
 
     /**
-     * Helper for REST API Callback.
-     * Called by powertranz-woocommerce.php
+     * Auxiliar para Callback de API REST.
+     * Llamado por powertranz-woocommerce.php
      */
     public function rest_handler_callback($request)
     {
-        // Debug Log
+        // Registro de depuración
         if (empty($this->log)) {
             $this->log = new WC_Logger();
         }
         $this->log->add('powertranz', 'REST API Callback Reached. Method: ' . $_SERVER['REQUEST_METHOD']);
 
-        // Inject request params into $_POST/$_REQUEST for the legacy handler to work without rewrite
+        // Inyectar parámetros del request en $_POST/$_REQUEST para que el manejador legacy funcione sin reescritura
         $params = $request->get_params();
         if (!empty($params)) {
             $_POST = array_merge($_POST, $params);
             $_REQUEST = array_merge($_REQUEST, $params);
         }
 
-        // Execute logic
+        // Ejecutar lógica
         $this->handler_callback();
 
-        // Return valid REST response
+        // Devolver respuesta REST válida
         return new WP_REST_Response(array('status' => 'success', 'message' => 'Processed'), 200);
     }
 
@@ -617,23 +617,23 @@ class WC_Gateway_PowerTranz extends WC_Payment_Gateway
     }
 
     /**
-     * Map Currency to ISO Numeric
+     * Mapear moneda a código numérico ISO
      */
     private function get_iso_numeric($currency_code)
     {
         $map = array(
             'HNL' => '340', // Lempira
-            'USD' => '840', // US Dollar
+            'USD' => '840', // Dólar estadounidense
             'EUR' => '978',
             'GBP' => '826',
             // Añadir más si es necesario
         );
 
-        return isset($map[$currency_code]) ? $map[$currency_code] : '840'; // Default USD
+        return isset($map[$currency_code]) ? $map[$currency_code] : '840'; // USD por defecto
     }
 
     /**
-     * Helper log function
+     * Función auxiliar de registro
      */
     public function log($message)
     {

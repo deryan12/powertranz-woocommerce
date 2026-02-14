@@ -1,11 +1,11 @@
 /* ================================================================
-   PowerTranz Credit Card Form – based on CodePen quinlo/YONMEa
-   All selectors scoped under #wc-powertranz-cc-form
+   Formulario de Tarjeta de Crédito PowerTranz – basado en CodePen quinlo/YONMEa
+   Todos los selectores bajo el ámbito de #wc-powertranz-cc-form
    ================================================================ */
 
-/* Google Fonts are loaded via wp_enqueue_style in the plugin loader */
+/* Las fuentes de Google se cargan vía wp_enqueue_style en el cargador del plugin */
 
-/* ---- TWO-COLUMN LAYOUT ---- */
+/* ---- DISEÑO EN DOS COLUMNAS ---- */
 #wc-powertranz-cc-form .powertranz-two-col {
     display: flex;
     gap: 30px;
@@ -34,7 +34,7 @@
     }
 }
 
-/* ---- FORM GRID ---- */
+/* ---- CUADRÍCULA DEL FORMULARIO ---- */
 #wc-powertranz-cc-form .form-container .field-container:first-of-type {
     grid-area: name;
 }
@@ -93,7 +93,7 @@
     width: 60px;
 }
 
-/* ---- CREDIT CARD IMAGE STYLING ---- */
+/* ---- ESTILOS DE IMAGEN DE TARJETA DE CRÉDITO ---- */
 #wc-powertranz-cc-form .preload * {
     -webkit-transition: none !important;
     -moz-transition: none !important;
@@ -127,7 +127,7 @@
     border-radius: 22px;
 }
 
-/* ---- CHANGEABLE CARD ELEMENTS ---- */
+/* ---- ELEMENTOS DE TARJETA CAMBIABLES ---- */
 #wc-powertranz-cc-form .creditcard .lightcolor,
 #wc-powertranz-cc-form .creditcard .darkcolor {
     -webkit-transition: fill .5s;
@@ -206,7 +206,7 @@
     fill: #616161;
 }
 
-/* ---- FRONT OF CARD ---- */
+/* ---- FRENTE DE LA TARJETA ---- */
 #wc-powertranz-cc-form #svgname {
     text-transform: uppercase;
 }
@@ -259,7 +259,7 @@
     fill: #4C4C4C;
 }
 
-/* ---- BACK OF CARD ---- */
+/* ---- REVERSO DE LA TARJETA ---- */
 #wc-powertranz-cc-form #cardback .st0 {
     fill: none;
     stroke: #0F0F0F;
@@ -315,7 +315,7 @@
     font-size: 37.769px;
 }
 
-/* ---- FLIP ANIMATION ---- */
+/* ---- ANIMACIÓN DE VOLTEO ---- */
 #wc-powertranz-cc-form .container {
     perspective: 1000px;
 }

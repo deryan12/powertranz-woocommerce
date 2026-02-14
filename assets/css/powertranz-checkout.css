@@ -32,6 +32,19 @@
         flex: 1 1 100%;
         width: 100%;
     }
+
+    /* Ajuste del contenedor de la tarjeta en móvil */
+    #wc-powertranz-cc-form .container {
+        max-height: none;
+        height: auto;
+        padding: 10px;
+        overflow: visible;
+    }
+
+    #wc-powertranz-cc-form .creditcard {
+        max-width: 100%;
+        margin: 0 auto;
+    }
 }
 
 /* ---- CUADRÍCULA DEL FORMULARIO ---- */
@@ -323,6 +336,8 @@
 #wc-powertranz-cc-form .creditcard {
     width: 100%;
     max-width: 400px;
+    position: relative;
+    aspect-ratio: 750 / 471;
     -webkit-transform-style: preserve-3d;
     transform-style: preserve-3d;
     transition: -webkit-transform 0.6s;

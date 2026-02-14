@@ -445,41 +445,90 @@ class WC_Gateway_PowerTranz extends WC_Payment_Gateway
     }
 
     /**
+     * Sanitizar texto para PowerTranz.
+     * Elimina caracteres prohibidos (acentos, ñ, simbolos) y trunca al largo maximo.
+     *
+     * @param string $text  Texto a sanitizar.
+     * @param int    $max   Largo maximo permitido.
+     * @return string
+     */
+    private function sanitize_for_powertranz($text, $max = 50)
+    {
+        // 1. Transliterar acentos a su equivalente ASCII (á->a, é->e, ñ->n, etc.)
+        if (function_exists('iconv')) {
+            $text = iconv('UTF-8', 'ASCII//TRANSLIT//IGNORE', $text);
+        }
+
+        // 2. Eliminar cualquier caracter que no sea alfanumerico, espacio, punto, guion o coma
+        $text = preg_replace('/[^a-zA-Z0-9\s.\-,]/', '', $text);
+
+        // 3. Eliminar espacios multiples
+        $text = preg_replace('/\s+/', ' ', trim($text));
+
+        // 4. Truncar al largo maximo
+        return substr($text, 0, $max);
+    }
+
+    /**
+     * Sanitizar numero de telefono para PowerTranz.
+     * Solo digitos, sin +, espacios ni guiones.
+     *
+     * @param string $phone
+     * @return string
+     */
+    private function sanitize_phone_for_powertranz($phone)
+    {
+        return preg_replace('/\D/', '', $phone);
+    }
+
+    /**
      * Construir payload JSON para la API SPI
      */
     private function get_transaction_payload($order)
     {
         $order_id = $order->get_id();
         $amount = $order->get_total();
-        $currency = $order->get_currency(); // Debería ser numérico ISO 4217 para PowerTranz? Docs dicen 'CurrencyCode'.
-        // El usuario mencionó moneda Lempiras (HNL). PowerTranz usa códigos ISO numéricos usualmente (340 para HNL).
-        // Vamos a asumir ISO numérico. Necesitaremos un mapa o función de conversión si WC usa 'HNL'.
-        // *Revisión rápida*: PowerTranz docs usually expect ISO Numeric (e.g. 840 for USD).
-        // HNL (Lempira) is 340.
-
+        $currency = $order->get_currency();
         $currency_code = $this->get_iso_numeric($currency);
 
         // Datos de tarjeta desde POST
-        // Nota: En un entorno real PCI, esto debe manejarse con extremo cuidado.
-        // SPI asume que el servidor maneja los datos si se envían así.
         $card_number = isset($_POST['powertranz-card-number']) ? sanitize_text_field(str_replace(' ', '', $_POST['powertranz-card-number'])) : '';
-        $card_expiry = isset($_POST['powertranz-card-expiry']) ? sanitize_text_field($_POST['powertranz-card-expiry']) : ''; // MM / YY
+        $card_expiry = isset($_POST['powertranz-card-expiry']) ? sanitize_text_field($_POST['powertranz-card-expiry']) : '';
         $card_cvc = isset($_POST['powertranz-card-cvc']) ? sanitize_text_field($_POST['powertranz-card-cvc']) : '';
 
-        // Formatear expiración (MM/YY o MM / YY -> YYMM)
-        // Limpiamos espacios para manejar tanto "MM / YY" como "MM/YY"
-        $card_expiry = str_replace(' ', '', $card_expiry); // Ahora es MM/YY
+        // Formatear expiracion (MM / YY -> YYMM)
+        $card_expiry = str_replace(' ', '', $card_expiry);
         $exp_parts = explode('/', $card_expiry);
 
         $exp_str = '';
         if (count($exp_parts) === 2) {
-            // Asegurar que sean números y tengan longitud correcta
             $month = str_pad($exp_parts[0], 2, '0', STR_PAD_LEFT);
             $year = $exp_parts[1];
-            // Si el año es de 2 dígitos, asumimos 20xx (aunque PowerTranz suele aceptar 2 dígitos si es YYMM)
-            // La documentación de ejemplo (según recuerdo o común en estos gateways) suele ser YYMM.
             $exp_str = $year . $month;
         }
+
+        // --- BillingAddress (Obligatorio para Honduras / 3DS) ---
+        $billing_line1_raw = $order->get_billing_address_1();
+        $billing_line2_raw = $order->get_billing_address_2();
+
+        // Line1 max 30 chars. Si sobra, mover a Line2
+        $billing_line1 = $this->sanitize_for_powertranz($billing_line1_raw, 30);
+        $overflow = '';
+        if (strlen($this->sanitize_for_powertranz($billing_line1_raw, 999)) > 30) {
+            $overflow = substr($this->sanitize_for_powertranz($billing_line1_raw, 999), 30) . ' ';
+        }
+        $billing_line2 = $this->sanitize_for_powertranz($overflow . $billing_line2_raw, 50);
+
+        $billing_city = $this->sanitize_for_powertranz($order->get_billing_city(), 50);
+        $billing_country = $order->get_billing_country(); // ISO 2-letter code (ej. HN)
+        $billing_phone = $this->sanitize_phone_for_powertranz($order->get_billing_phone());
+        $billing_email = trim($order->get_billing_email());
+
+        // Sanitizar CardholderName
+        $cardholder_name = $this->sanitize_for_powertranz(
+            $order->get_billing_first_name() . ' ' . $order->get_billing_last_name(),
+            45
+        );
 
         // Recopilar BrowserInfo de los campos ocultos del frontend
         $browser_info = array(
@@ -499,22 +548,33 @@ class WC_Gateway_PowerTranz extends WC_Payment_Gateway
             "TransactionIdentifier" => wp_generate_uuid4(),
             "TotalAmount" => (float) $amount,
             "CurrencyCode" => $currency_code,
+            "TaxAmount" => 0.00, // Obligatorio para Honduras (banco lo requiere)
             "ThreeDSecure" => $this->enable_3ds === 'yes',
             "Source" => array(
                 "CardPan" => $card_number,
                 "CardCvv" => $card_cvc,
                 "CardExpiration" => $exp_str,
-                "CardholderName" => $order->get_billing_first_name() . ' ' . $order->get_billing_last_name(),
+                "CardholderName" => $cardholder_name,
+            ),
+            "BillingAddress" => array(
+                "Line1" => $billing_line1,
+                "Line2" => $billing_line2,
+                "City" => $billing_city,
+                "County" => $billing_country,
+                "State" => "",
+                "PostalCode" => "",
+                "PhoneNumber" => $billing_phone,
+                "EmailAddress" => $billing_email,
             ),
             "OrderIdentifier" => (string) $order_id,
             "AddressMatch" => false,
             "ExtendedData" => array(
                 "ThreeDSecure" => array(
                     "ChallengeWindowSize" => 5,
-                    "ChallengeIndicator" => "01" // 01 = No preference, standard.
+                    "ChallengeIndicator" => "01"
                 ),
-                // Use AJAX handler to avoid 403 and Rewrite issues
-                "MerchantResponseUrl" => admin_url('admin-ajax.php?action=powertranz_callback')
+                "MerchantResponseUrl" => admin_url('admin-ajax.php?action=powertranz_callback'),
+                "BrowserInfo" => $browser_info
             )
         );
 

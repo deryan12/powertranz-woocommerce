@@ -57,10 +57,19 @@ function add_powertranz_gateway($gateways)
 function powertranz_checkout_assets()
 {
     if (is_checkout()) {
-        wp_enqueue_style('powertranz-checkout-css', POWERTRANZ_PLUGIN_URL . 'assets/css/powertranz-checkout.css', array(), POWERTRANZ_VERSION);
-        wp_enqueue_script('powertranz-checkout-js', POWERTRANZ_PLUGIN_URL . 'assets/js/powertranz-checkout.js', array('jquery'), POWERTRANZ_VERSION, true);
+        // Google Fonts needed by the card form
+        wp_enqueue_style('powertranz-google-fonts', 'https://fonts.googleapis.com/css?family=Raleway|Rock+Salt|Source+Code+Pro:300,400,600', array(), null);
 
-        // Pasar URLs de imágenes a JS
+        // Plugin CSS
+        wp_enqueue_style('powertranz-checkout-css', POWERTRANZ_PLUGIN_URL . 'assets/css/powertranz-checkout.css', array('powertranz-google-fonts'), POWERTRANZ_VERSION);
+
+        // IMask.js from CDN (required by the credit card form)
+        wp_enqueue_script('imask-js', 'https://cdnjs.cloudflare.com/ajax/libs/imask/3.4.0/imask.min.js', array(), '3.4.0', true);
+
+        // Plugin JS (depends on IMask, jQuery optional for WC checkout events)
+        wp_enqueue_script('powertranz-checkout-js', POWERTRANZ_PLUGIN_URL . 'assets/js/powertranz-checkout.js', array('imask-js'), POWERTRANZ_VERSION, true);
+
+        // Pass URLs to JS (kept for backward compatibility)
         wp_localize_script('powertranz-checkout-js', 'powertranz_params', array(
             'plugin_url' => POWERTRANZ_PLUGIN_URL
         ));

@@ -1,50 +1,327 @@
-/* Estilos para el campo de tarjeta y logos */
-.powertranz-card-input-wrapper {
+/* ================================================================
+   PowerTranz Credit Card Form – based on CodePen quinlo/YONMEa
+   All selectors scoped under #wc-powertranz-cc-form
+   ================================================================ */
+
+/* Google Fonts are loaded via wp_enqueue_style in the plugin loader */
+
+/* ---- FORM GRID ---- */
+#wc-powertranz-cc-form .form-container .field-container:first-of-type {
+    grid-area: name;
+}
+
+#wc-powertranz-cc-form .form-container .field-container:nth-of-type(2) {
+    grid-area: number;
+}
+
+#wc-powertranz-cc-form .form-container .field-container:nth-of-type(3) {
+    grid-area: expiration;
+}
+
+#wc-powertranz-cc-form .form-container .field-container:nth-of-type(4) {
+    grid-area: security;
+}
+
+#wc-powertranz-cc-form .field-container input {
+    -webkit-box-sizing: border-box;
+    box-sizing: border-box;
+}
+
+#wc-powertranz-cc-form .field-container {
     position: relative;
-    display: block;
 }
 
-.powertranz-card-input-wrapper input.wc-credit-card-form-card-number {
-    padding-right: 50px !important;
-    /* Espacio para el icono */
-    background-position: right 10px center;
-    background-size: 32px 20px;
-    background-repeat: no-repeat;
+#wc-powertranz-cc-form .form-container {
+    display: grid;
+    grid-column-gap: 10px;
+    grid-template-columns: auto auto;
+    grid-template-rows: 90px 90px 90px;
+    grid-template-areas: "name name" "number number" "expiration security";
+    max-width: 400px;
+    padding: 20px;
+    color: #707070;
+    font-family: 'Raleway', sans-serif;
 }
 
-.powertranz-card-icon {
+#wc-powertranz-cc-form .form-container label {
+    padding-bottom: 5px;
+    font-size: 13px;
+}
+
+#wc-powertranz-cc-form .form-container input {
+    margin-top: 3px;
+    padding: 15px;
+    font-size: 16px;
+    width: 100%;
+    border-radius: 3px;
+    border: 1px solid #dcdcdc;
+}
+
+#wc-powertranz-cc-form .ccicon {
+    height: 38px;
     position: absolute;
-    right: 10px;
-    top: 50%;
-    transform: translateY(-50%);
-    width: 40px;
-    height: 25px;
-    background-size: contain;
-    background-repeat: no-repeat;
-    background-position: right center;
-    pointer-events: none;
-    z-index: 10;
-    transition: all 0.3s ease;
-    opacity: 0;
-    /* Oculto por defecto hasta que se detecte */
+    right: 6px;
+    top: calc(50% - 17px);
+    width: 60px;
 }
 
-/* Mostrar solo cuando tenga una clase válida */
-.powertranz-card-icon.visa,
-.powertranz-card-icon.mastercard,
-.powertranz-card-icon.amex {
-    opacity: 1;
+/* ---- CREDIT CARD IMAGE STYLING ---- */
+#wc-powertranz-cc-form .preload * {
+    -webkit-transition: none !important;
+    -moz-transition: none !important;
+    -ms-transition: none !important;
+    -o-transition: none !important;
 }
 
-/* Rutas relativas a este archivo CSS */
-.powertranz-card-icon.visa {
-    background-image: url('../images/visa.svg');
+#wc-powertranz-cc-form .container {
+    width: 100%;
+    max-width: 400px;
+    max-height: 251px;
+    height: 54vw;
+    padding: 20px;
 }
 
-.powertranz-card-icon.mastercard {
-    background-image: url('../images/mastercard.svg');
+#wc-powertranz-cc-form #ccsingle {
+    position: absolute;
+    right: 15px;
+    top: 20px;
 }
 
-.powertranz-card-icon.amex {
-    background-image: url('../images/amex.svg');
+#wc-powertranz-cc-form #ccsingle svg {
+    width: 100px;
+    max-height: 60px;
+}
+
+#wc-powertranz-cc-form .creditcard svg#cardfront,
+#wc-powertranz-cc-form .creditcard svg#cardback {
+    width: 100%;
+    -webkit-box-shadow: 1px 5px 6px 0px black;
+    box-shadow: 1px 5px 6px 0px black;
+    border-radius: 22px;
+}
+
+/* ---- CHANGEABLE CARD ELEMENTS ---- */
+#wc-powertranz-cc-form .creditcard .lightcolor,
+#wc-powertranz-cc-form .creditcard .darkcolor {
+    -webkit-transition: fill .5s;
+    transition: fill .5s;
+}
+
+#wc-powertranz-cc-form .creditcard .lightblue {
+    fill: #03A9F4;
+}
+
+#wc-powertranz-cc-form .creditcard .lightbluedark {
+    fill: #0288D1;
+}
+
+#wc-powertranz-cc-form .creditcard .red {
+    fill: #ef5350;
+}
+
+#wc-powertranz-cc-form .creditcard .reddark {
+    fill: #d32f2f;
+}
+
+#wc-powertranz-cc-form .creditcard .purple {
+    fill: #ab47bc;
+}
+
+#wc-powertranz-cc-form .creditcard .purpledark {
+    fill: #7b1fa2;
+}
+
+#wc-powertranz-cc-form .creditcard .cyan {
+    fill: #26c6da;
+}
+
+#wc-powertranz-cc-form .creditcard .cyandark {
+    fill: #0097a7;
+}
+
+#wc-powertranz-cc-form .creditcard .green {
+    fill: #66bb6a;
+}
+
+#wc-powertranz-cc-form .creditcard .greendark {
+    fill: #388e3c;
+}
+
+#wc-powertranz-cc-form .creditcard .lime {
+    fill: #d4e157;
+}
+
+#wc-powertranz-cc-form .creditcard .limedark {
+    fill: #afb42b;
+}
+
+#wc-powertranz-cc-form .creditcard .yellow {
+    fill: #ffeb3b;
+}
+
+#wc-powertranz-cc-form .creditcard .yellowdark {
+    fill: #f9a825;
+}
+
+#wc-powertranz-cc-form .creditcard .orange {
+    fill: #ff9800;
+}
+
+#wc-powertranz-cc-form .creditcard .orangedark {
+    fill: #ef6c00;
+}
+
+#wc-powertranz-cc-form .creditcard .grey {
+    fill: #bdbdbd;
+}
+
+#wc-powertranz-cc-form .creditcard .greydark {
+    fill: #616161;
+}
+
+/* ---- FRONT OF CARD ---- */
+#wc-powertranz-cc-form #svgname {
+    text-transform: uppercase;
+}
+
+#wc-powertranz-cc-form #cardfront .st2 {
+    fill: #FFFFFF;
+}
+
+#wc-powertranz-cc-form #cardfront .st3 {
+    font-family: 'Source Code Pro', monospace;
+    font-weight: 600;
+}
+
+#wc-powertranz-cc-form #cardfront .st4 {
+    font-size: 54.7817px;
+}
+
+#wc-powertranz-cc-form #cardfront .st5 {
+    font-family: 'Source Code Pro', monospace;
+    font-weight: 400;
+}
+
+#wc-powertranz-cc-form #cardfront .st6 {
+    font-size: 33.1112px;
+}
+
+#wc-powertranz-cc-form #cardfront .st7 {
+    opacity: 0.6;
+    fill: #FFFFFF;
+}
+
+#wc-powertranz-cc-form #cardfront .st8 {
+    font-size: 24px;
+}
+
+#wc-powertranz-cc-form #cardfront .st9 {
+    font-size: 36.5498px;
+}
+
+#wc-powertranz-cc-form #cardfront .st10 {
+    font-family: 'Source Code Pro', monospace;
+    font-weight: 300;
+}
+
+#wc-powertranz-cc-form #cardfront .st11 {
+    font-size: 16.1716px;
+}
+
+#wc-powertranz-cc-form #cardfront .st12 {
+    fill: #4C4C4C;
+}
+
+/* ---- BACK OF CARD ---- */
+#wc-powertranz-cc-form #cardback .st0 {
+    fill: none;
+    stroke: #0F0F0F;
+    stroke-miterlimit: 10;
+}
+
+#wc-powertranz-cc-form #cardback .st2 {
+    fill: #111111;
+}
+
+#wc-powertranz-cc-form #cardback .st3 {
+    fill: #F2F2F2;
+}
+
+#wc-powertranz-cc-form #cardback .st4 {
+    fill: #D8D2DB;
+}
+
+#wc-powertranz-cc-form #cardback .st5 {
+    fill: #C4C4C4;
+}
+
+#wc-powertranz-cc-form #cardback .st6 {
+    font-family: 'Source Code Pro', monospace;
+    font-weight: 400;
+}
+
+#wc-powertranz-cc-form #cardback .st7 {
+    font-size: 27px;
+}
+
+#wc-powertranz-cc-form #cardback .st8 {
+    opacity: 0.6;
+}
+
+#wc-powertranz-cc-form #cardback .st9 {
+    fill: #FFFFFF;
+}
+
+#wc-powertranz-cc-form #cardback .st10 {
+    font-size: 24px;
+}
+
+#wc-powertranz-cc-form #cardback .st11 {
+    fill: #EAEAEA;
+}
+
+#wc-powertranz-cc-form #cardback .st12 {
+    font-family: 'Rock Salt', cursive;
+}
+
+#wc-powertranz-cc-form #cardback .st13 {
+    font-size: 37.769px;
+}
+
+/* ---- FLIP ANIMATION ---- */
+#wc-powertranz-cc-form .container {
+    perspective: 1000px;
+}
+
+#wc-powertranz-cc-form .creditcard {
+    width: 100%;
+    max-width: 400px;
+    -webkit-transform-style: preserve-3d;
+    transform-style: preserve-3d;
+    transition: -webkit-transform 0.6s;
+    -webkit-transition: -webkit-transform 0.6s;
+    transition: transform 0.6s;
+    transition: transform 0.6s, -webkit-transform 0.6s;
+    cursor: pointer;
+}
+
+#wc-powertranz-cc-form .creditcard .front,
+#wc-powertranz-cc-form .creditcard .back {
+    position: absolute;
+    width: 100%;
+    max-width: 400px;
+    -webkit-backface-visibility: hidden;
+    backface-visibility: hidden;
+    -webkit-font-smoothing: antialiased;
+    color: #47525d;
+}
+
+#wc-powertranz-cc-form .creditcard .back {
+    -webkit-transform: rotateY(180deg);
+    transform: rotateY(180deg);
+}
+
+#wc-powertranz-cc-form .creditcard.flipped {
+    -webkit-transform: rotateY(180deg);
+    transform: rotateY(180deg);
 }

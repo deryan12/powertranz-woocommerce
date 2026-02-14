@@ -5,6 +5,35 @@
 
 /* Google Fonts are loaded via wp_enqueue_style in the plugin loader */
 
+/* ---- TWO-COLUMN LAYOUT ---- */
+#wc-powertranz-cc-form .powertranz-two-col {
+    display: flex;
+    gap: 30px;
+    align-items: flex-start;
+}
+
+#wc-powertranz-cc-form .powertranz-two-col>.form-container {
+    flex: 1 1 50%;
+    min-width: 0;
+}
+
+#wc-powertranz-cc-form .powertranz-two-col>.container {
+    flex: 1 1 50%;
+    min-width: 0;
+}
+
+@media (max-width: 768px) {
+    #wc-powertranz-cc-form .powertranz-two-col {
+        flex-direction: column;
+    }
+
+    #wc-powertranz-cc-form .powertranz-two-col>.form-container,
+    #wc-powertranz-cc-form .powertranz-two-col>.container {
+        flex: 1 1 100%;
+        width: 100%;
+    }
+}
+
 /* ---- FORM GRID ---- */
 #wc-powertranz-cc-form .form-container .field-container:first-of-type {
     grid-area: name;
@@ -37,7 +66,6 @@
     grid-template-columns: auto auto;
     grid-template-rows: 90px 90px 90px;
     grid-template-areas: "name name" "number number" "expiration security";
-    max-width: 400px;
     padding: 20px;
     color: #707070;
     font-family: 'Raleway', sans-serif;
@@ -75,7 +103,6 @@
 
 #wc-powertranz-cc-form .container {
     width: 100%;
-    max-width: 400px;
     max-height: 251px;
     height: 54vw;
     padding: 20px;

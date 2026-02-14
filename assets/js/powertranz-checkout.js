@@ -128,7 +128,7 @@
         /* ── Live preview: Name ── */
         if (nameInput) {
             nameInput.addEventListener('input', function () {
-                var val = nameInput.value.length === 0 ? 'JOHN DOE' : nameInput.value;
+                var val = nameInput.value.length === 0 ? 'NOMBRE COMPLETO' : nameInput.value;
                 var svgname = document.getElementById('svgname');
                 var svgnameback = document.getElementById('svgnameback');
                 if (svgname) svgname.textContent = val;

@@ -530,20 +530,6 @@ class WC_Gateway_PowerTranz extends WC_Payment_Gateway
             45
         );
 
-        // Recopilar BrowserInfo de los campos ocultos del frontend
-        $browser_info = array(
-            'ScreenWidth' => isset($_POST['powertranz_browser_width']) ? sanitize_text_field($_POST['powertranz_browser_width']) : '',
-            'ScreenHeight' => isset($_POST['powertranz_browser_height']) ? sanitize_text_field($_POST['powertranz_browser_height']) : '',
-            'ColorDepth' => isset($_POST['powertranz_browser_color_depth']) ? sanitize_text_field($_POST['powertranz_browser_color_depth']) : '',
-            'Language' => isset($_POST['powertranz_browser_language']) ? sanitize_text_field($_POST['powertranz_browser_language']) : '',
-            'TimeZone' => isset($_POST['powertranz_browser_timezone']) ? sanitize_text_field($_POST['powertranz_browser_timezone']) : '',
-            'JavaEnabled' => (isset($_POST['powertranz_browser_java_enabled']) && $_POST['powertranz_browser_java_enabled'] === 'true'),
-            'JavascriptEnabled' => true,
-            'UserAgent' => isset($_SERVER['HTTP_USER_AGENT']) ? sanitize_text_field($_SERVER['HTTP_USER_AGENT']) : '',
-            'AcceptHeader' => isset($_SERVER['HTTP_ACCEPT']) ? sanitize_text_field($_SERVER['HTTP_ACCEPT']) : '',
-            'IP' => WC_Geolocation::get_ip_address()
-        );
-
         $payload = array(
             "TransactionIdentifier" => wp_generate_uuid4(),
             "TotalAmount" => (float) $amount,
@@ -573,8 +559,7 @@ class WC_Gateway_PowerTranz extends WC_Payment_Gateway
                     "ChallengeWindowSize" => 5,
                     "ChallengeIndicator" => "01"
                 ),
-                "MerchantResponseUrl" => admin_url('admin-ajax.php?action=powertranz_callback'),
-                "BrowserInfo" => $browser_info
+                "MerchantResponseUrl" => admin_url('admin-ajax.php?action=powertranz_callback')
             )
         );
 
